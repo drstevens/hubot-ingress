@@ -9,9 +9,6 @@
 #
 # Commands:
 #   hubot intelmap for <search>
-#
-# Author:
-#   therealklanni
 
 module.exports = (robot) ->
   # Setting this on robot so that it can be overridden in test. Is there a better way?
@@ -27,19 +24,26 @@ module.exports = (robot) ->
       .get() (err, res, body) ->
         try
           body = JSON.parse body
-          coords = body.results[0].geometry.location
+          results = body.results.slice(0,2).map (r) -> 
+            name: r.formatted_address
+            coords: r.geometry.location
+          if results.length < 1
+            err = "Could not find #{location}"
+            return cb(err, msg, null)
+          else 
+            cb(err, msg, results)
         catch err
           err = "Could not find #{location}"
           return cb(err, msg, null)
-        cb(err, msg, coords)
+        
 
-  intelmapUrl = (coords) ->
-    return "https://www.ingress.com/intel?ll=" + encodeURIComponent(coords.lat) + "," + encodeURIComponent(coords.lng) + "&z=16"
-  sendIntelLink = (err, msg, coords) ->
-    return msg.send err if err
-    url = intelmapUrl coords
-    msg.reply url
+  intelmapUrl = (result) ->
+    return result.name + "\nhttps://www.ingress.com/intel?ll=" + encodeURIComponent(result.coords.lat) + "," + encodeURIComponent(result.coords.lng) + "&z=16"
+  sendIntelLinks = (err, msg, results) ->
+    return msg.send err if err or results.length < 1
+    urls = (intelmapUrl c for c in results).reduce (l, r) -> l + "\n" + r
+    msg.send urls
 
   robot.respond /(intelmap|intel map)(?: for)?\s(.*)/i, (msg) ->
     location = msg.match[2]
-    lookupLatLong msg, location, sendIntelLink
+    lookupLatLong msg, location, sendIntelLinks
